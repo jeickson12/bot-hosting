@@ -30,15 +30,15 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
 GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
 GITHUB_REDIRECT_URI = os.environ.get('GITHUB_REDIRECT_URI', '')
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 # ==================== BASE DE DATOS ====================
 class Database:
     def __init__(self):
-        self.db_path = os.path.join(BASE_DIR, 'bots.db')
         self.init_db()
     
     def get_conn(self):
-        return sqlite3.connect(self.db_path)
+        return psycopg2.connect(DATABASE_URL)
     
     def init_db(self):
         conn = self.get_conn()
@@ -46,7 +46,7 @@ class Database:
         
         c.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 email TEXT,
@@ -59,7 +59,7 @@ class Database:
         
         c.execute('''
             CREATE TABLE IF NOT EXISTS bots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 repo_url TEXT NOT NULL,
@@ -67,8 +67,7 @@ class Database:
                 directory TEXT NOT NULL,
                 status TEXT DEFAULT 'stopped',
                 pid INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
@@ -77,13 +76,13 @@ class Database:
                 token TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                expires_at TIMESTAMP
             )
         ''')
         
         conn.commit()
         conn.close()
+        print("✅ Base de datos PostgreSQL inicializada")
     
     def hash_password(self, pwd):
         return hashlib.sha256(pwd.encode()).hexdigest()
@@ -93,13 +92,14 @@ class Database:
         c = conn.cursor()
         try:
             hashed = self.hash_password(password)
-            c.execute('INSERT INTO users (username, password, email) VALUES (?, ?, ?)',
+            c.execute('INSERT INTO users (username, password, email) VALUES (%s, %s, %s) RETURNING id',
                      (username, hashed, email))
+            user_id = c.fetchone()[0]
             conn.commit()
-            user_id = c.lastrowid
             conn.close()
             return self.get_user(user_id)
-        except sqlite3.IntegrityError:
+        except Exception as e:
+            print(f"Error registrando: {e}")
             conn.close()
             return None
     
@@ -107,7 +107,7 @@ class Database:
         hashed = self.hash_password(password)
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, hashed))
+        c.execute('SELECT * FROM users WHERE username = %s AND password = %s', (username, hashed))
         user = c.fetchone()
         conn.close()
         return self._user_to_dict(user) if user else None
@@ -115,7 +115,7 @@ class Database:
     def get_user(self, user_id):
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+        c.execute('SELECT * FROM users WHERE id = %s', (user_id,))
         user = c.fetchone()
         conn.close()
         return self._user_to_dict(user) if user else None
@@ -123,20 +123,12 @@ class Database:
     def get_user_by_token(self, token):
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('SELECT user_id FROM sessions WHERE token = ? AND expires_at > CURRENT_TIMESTAMP', (token,))
+        c.execute('SELECT user_id FROM sessions WHERE token = %s AND expires_at > CURRENT_TIMESTAMP', (token,))
         session_row = c.fetchone()
         conn.close()
         if session_row:
             return self.get_user(session_row[0])
         return None
-    
-    def get_user_by_github_username(self, username):
-        conn = self.get_conn()
-        c = conn.cursor()
-        c.execute('SELECT * FROM users WHERE github_username = ?', (username,))
-        user = c.fetchone()
-        conn.close()
-        return self._user_to_dict(user) if user else None
     
     def _user_to_dict(self, user):
         if not user:
@@ -148,7 +140,7 @@ class Database:
             'github_token': user[4],
             'github_username': user[5],
             'plan': user[6],
-            'created_at': user[7]
+            'created_at': user[7].isoformat() if user[7] else None
         }
     
     def create_session(self, user_id):
@@ -156,7 +148,7 @@ class Database:
         expires = datetime.now() + timedelta(days=7)
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)', 
+        c.execute('INSERT INTO sessions (token, user_id, expires_at) VALUES (%s, %s, %s)', 
                  (token, user_id, expires))
         conn.commit()
         conn.close()
@@ -165,14 +157,14 @@ class Database:
     def delete_session(self, token):
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('DELETE FROM sessions WHERE token = ?', (token,))
+        c.execute('DELETE FROM sessions WHERE token = %s', (token,))
         conn.commit()
         conn.close()
     
     def save_github_token(self, user_id, token, username):
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('UPDATE users SET github_token = ?, github_username = ? WHERE id = ?', 
+        c.execute('UPDATE users SET github_token = %s, github_username = %s WHERE id = %s', 
                  (token, username, user_id))
         conn.commit()
         conn.close()
@@ -183,17 +175,17 @@ class Database:
         c = conn.cursor()
         c.execute('''
             INSERT INTO bots (user_id, name, repo_url, repo_name, directory, status) 
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
         ''', (user_id, name, repo_url, repo_name, directory, 'running'))
+        bot_id = c.fetchone()[0]
         conn.commit()
-        bot_id = c.lastrowid
         conn.close()
         return self.get_bot(bot_id)
     
     def get_bot(self, bot_id):
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('SELECT * FROM bots WHERE id = ?', (bot_id,))
+        c.execute('SELECT * FROM bots WHERE id = %s', (bot_id,))
         bot = c.fetchone()
         conn.close()
         if bot:
@@ -206,14 +198,14 @@ class Database:
                 'directory': bot[5],
                 'status': bot[6],
                 'pid': bot[7],
-                'created_at': bot[8]
+                'created_at': bot[8].isoformat() if bot[8] else None
             }
         return None
     
     def get_user_bots(self, user_id):
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('SELECT * FROM bots WHERE user_id = ? ORDER BY created_at DESC', (user_id,))
+        c.execute('SELECT * FROM bots WHERE user_id = %s ORDER BY created_at DESC', (user_id,))
         bots = c.fetchall()
         conn.close()
         return [{
@@ -222,27 +214,25 @@ class Database:
             'repo_url': b[3],
             'repo_name': b[4],
             'status': b[6],
-            'created_at': b[8]
+            'created_at': b[8].isoformat() if b[8] else None
         } for b in bots]
     
     def update_bot_status(self, bot_id, status, pid=None):
         conn = self.get_conn()
         c = conn.cursor()
         if pid:
-            c.execute('UPDATE bots SET status = ?, pid = ? WHERE id = ?', (status, pid, bot_id))
+            c.execute('UPDATE bots SET status = %s, pid = %s WHERE id = %s', (status, pid, bot_id))
         else:
-            c.execute('UPDATE bots SET status = ? WHERE id = ?', (status, bot_id))
+            c.execute('UPDATE bots SET status = %s WHERE id = %s', (status, bot_id))
         conn.commit()
         conn.close()
     
     def delete_bot(self, bot_id):
         conn = self.get_conn()
         c = conn.cursor()
-        c.execute('DELETE FROM bots WHERE id = ?', (bot_id,))
+        c.execute('DELETE FROM bots WHERE id = %s', (bot_id,))
         conn.commit()
         conn.close()
-
-db = Database()
 
 # ==================== GESTOR DE BOTS ====================
 class BotManager:
