@@ -7,7 +7,6 @@ class DashboardApp {
     }
     
     async init() {
-        // Verificar autenticación
         if (!this.token) {
             window.location.href = '/login';
             return;
@@ -20,10 +19,81 @@ class DashboardApp {
             return;
         }
         
+        // Procesar parámetros de URL (después de GitHub OAuth)
+        await this.processUrlParams();
+        
         this.setupEventListeners();
         this.loadUserInfo();
         this.loadBots();
         this.checkGitHubStatus();
+    }
+    
+    async processUrlParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const githubConnected = urlParams.get('github_connected');
+        const tempToken = urlParams.get('temp_token');
+        const tempUsername = urlParams.get('temp_username');
+        
+        if (githubConnected === 'true' && tempToken && tempUsername) {
+            // Guardar el token de GitHub
+            try {
+                const response = await fetch('/api/github/save-token', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': this.token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        github_token: tempToken,
+                        github_username: tempUsername
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.user = data.user;
+                    localStorage.setItem('user', JSON.stringify(this.user));
+                    
+                    // Limpiar URL
+                    window.history.replaceState({}, document.title, '/dashboard');
+                    
+                    // Mostrar mensaje de éxito
+                    this.showToast('✅ GitHub conectado correctamente', 'success');
+                }
+            } catch (error) {
+                console.error('Error saving GitHub token:', error);
+            }
+        } else if (githubConnected === 'true') {
+            // Solo recargar información del usuario
+            await this.verifyAuth();
+            window.history.replaceState({}, document.title, '/dashboard');
+        }
+        
+        // Verificar si hay error
+        const error = urlParams.get('error');
+        if (error === 'github_auth_failed') {
+            this.showToast('❌ Error al conectar GitHub', 'error');
+            window.history.replaceState({}, document.title, '/dashboard');
+        }
+    }
+    
+    showToast(message, type) {
+        // Crear toast simple
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            background: ${type === 'success' ? '#4caf50' : '#f44336'};
+            color: white;
+            border-radius: 8px;
+            z-index: 9999;
+            animation: fadeInOut 3s ease;
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
     }
     
     async verifyAuth() {
@@ -45,7 +115,6 @@ class DashboardApp {
     }
     
     setupEventListeners() {
-        // Navegación
         document.querySelectorAll('.nav-item').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const view = btn.dataset.view;
@@ -57,7 +126,6 @@ class DashboardApp {
             });
         });
         
-        // Modal
         const modal = document.getElementById('logs-modal');
         const closeBtn = document.querySelector('.close-btn');
         if (closeBtn) {
@@ -69,21 +137,17 @@ class DashboardApp {
     }
     
     switchView(view) {
-        // Actualizar navegación
         document.querySelectorAll('.nav-item').forEach(btn => {
             btn.classList.remove('active');
             if (btn.dataset.view === view) btn.classList.add('active');
         });
         
-        // Actualizar vistas
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById(`view-${view}`).classList.add('active');
         
-        // Actualizar título
         const titles = { bots: 'Mis Bots', github: 'Conectar GitHub', account: 'Mi Cuenta' };
         document.getElementById('page-title').innerText = titles[view];
         
-        // Cargar datos
         if (view === 'github') this.loadGitHubRepos();
         if (view === 'account') this.loadAccountInfo();
         if (view === 'bots') this.loadBots();
@@ -93,7 +157,7 @@ class DashboardApp {
         const badge = document.getElementById('user-badge');
         if (badge) {
             badge.innerHTML = `
-                <span class="username">${this.user.username}</span>
+                <span class="username">${this.escapeHtml(this.user.username)}</span>
                 <span class="plan ${this.user.plan}">${this.user.plan === 'free' ? 'Gratis' : 'Pro'}</span>
             `;
         }
@@ -193,13 +257,13 @@ class DashboardApp {
             });
             
             if (response.ok) {
-                alert('✅ Bot reiniciado correctamente');
+                this.showToast('✅ Bot reiniciado correctamente', 'success');
                 this.loadBots();
             } else {
-                alert('❌ Error al reiniciar el bot');
+                this.showToast('❌ Error al reiniciar el bot', 'error');
             }
         } catch (error) {
-            alert('❌ Error de conexión');
+            this.showToast('❌ Error de conexión', 'error');
         }
     }
     
@@ -213,13 +277,13 @@ class DashboardApp {
             });
             
             if (response.ok) {
-                alert('✅ Bot eliminado correctamente');
+                this.showToast('✅ Bot eliminado correctamente', 'success');
                 this.loadBots();
             } else {
-                alert('❌ Error al eliminar el bot');
+                this.showToast('❌ Error al eliminar el bot', 'error');
             }
         } catch (error) {
-            alert('❌ Error de conexión');
+            this.showToast('❌ Error de conexión', 'error');
         }
     }
     
@@ -227,16 +291,20 @@ class DashboardApp {
         const container = document.getElementById('github-status');
         if (!container) return;
         
-        if (this.user.github_token) {
+        if (this.user.github_token && this.user.github_token !== 'null') {
             container.innerHTML = `
                 <div class="connected">
                     <div class="status-icon">✅</div>
                     <div class="status-text">
                         <strong>GitHub Conectado</strong>
-                        <p>Usuario: ${this.user.github_username || 'Conectado'}</p>
+                        <p>Usuario: ${this.escapeHtml(this.user.github_username || 'Conectado')}</p>
                     </div>
                 </div>
             `;
+            // Cargar repositorios automáticamente si estamos en la vista de GitHub
+            if (document.getElementById('view-github').classList.contains('active')) {
+                this.loadGitHubRepos();
+            }
         } else {
             container.innerHTML = `
                 <div class="disconnected">
@@ -244,7 +312,7 @@ class DashboardApp {
                     <div class="status-text">
                         <strong>GitHub No Conectado</strong>
                         <p>Conecta tu cuenta para desplegar bots desde tus repositorios</p>
-                        <a href="/auth/github" class="btn btn-primary">Conectar GitHub</a>
+                        <a href="/auth/github?token=${this.token}" class="btn btn-primary" id="github-connect-btn">Conectar GitHub</a>
                     </div>
                 </div>
             `;
@@ -252,7 +320,9 @@ class DashboardApp {
     }
     
     async loadGitHubRepos() {
-        if (!this.user.github_token) return;
+        if (!this.user.github_token) {
+            return;
+        }
         
         const container = document.getElementById('github-repos');
         if (!container) return;
@@ -268,7 +338,13 @@ class DashboardApp {
                 const repos = await response.json();
                 this.renderGitHubRepos(repos);
             } else {
-                container.innerHTML = '<div class="error">Error cargando repositorios</div>';
+                const error = await response.json();
+                if (error.error === 'GitHub no conectado') {
+                    container.innerHTML = '<div class="error">GitHub no está conectado. Conecta tu cuenta primero.</div>';
+                    this.checkGitHubStatus();
+                } else {
+                    container.innerHTML = '<div class="error">Error cargando repositorios</div>';
+                }
             }
         } catch (error) {
             container.innerHTML = '<div class="error">Error de conexión</div>';
@@ -323,15 +399,15 @@ class DashboardApp {
             });
             
             if (response.ok) {
-                alert(`✅ Bot "${botName}" desplegado correctamente`);
+                this.showToast(`✅ Bot "${botName}" desplegado correctamente`, 'success');
                 this.switchView('bots');
                 this.loadBots();
             } else {
                 const error = await response.json();
-                alert(`❌ Error: ${error.error}`);
+                this.showToast(`❌ Error: ${error.error}`, 'error');
             }
         } catch (error) {
-            alert('❌ Error de conexión');
+            this.showToast('❌ Error de conexión', 'error');
         } finally {
             deployBtn.innerText = originalText;
             deployBtn.disabled = false;
@@ -365,7 +441,6 @@ class DashboardApp {
             </div>
         `;
         
-        // Cargar conteo de bots
         try {
             const response = await fetch('/api/bots', {
                 headers: { 'Authorization': this.token }
