@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from flask import Flask, send_from_directory, jsonify, request, redirect
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder='frontend', static_url_path='')
+app = Flask(__name__, static_folder='frontend')
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 CORS(app)
 
@@ -479,9 +479,12 @@ def login_page():
 def dashboard_page():
     return send_from_directory('frontend', 'dashboard.html')
 
-@app.route('/<path:path>')
-def static_files(path):
-    return send_from_directory('frontend', path)
+@app.route('/<path:filename>')
+def static_files(filename):
+    # Verificar si el archivo existe en la carpeta frontend
+    if os.path.exists(os.path.join('frontend', filename)):
+        return send_from_directory('frontend', filename)
+    return jsonify({'error': 'Archivo no encontrado'}), 404
 
 # API de autenticación
 @app.route('/api/register', methods=['POST'])
