@@ -4,7 +4,141 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Autenticación - BotHost</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .auth-container {
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .auth-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        .auth-card h2 {
+            text-align: center;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .auth-tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 2rem;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .auth-form {
+            display: none;
+        }
+        
+        .auth-form.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 100%;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        }
+        
+        .auth-message {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+        }
+        
+        .auth-message.error {
+            background: #ffebee;
+            color: #c62828;
+            display: block;
+        }
+        
+        .auth-message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            display: block;
+        }
+    </style>
 </head>
 <body>
     <div class="auth-container">
@@ -26,7 +160,7 @@
                         <label>Contraseña</label>
                         <input type="password" id="login-password" placeholder="••••••••" required>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
+                    <button type="submit" class="btn btn-primary">Ingresar</button>
                 </form>
                 
                 <form id="register-form" class="auth-form">
@@ -46,7 +180,7 @@
                         <label>Confirmar contraseña</label>
                         <input type="password" id="reg-confirm" placeholder="repite la contraseña" required>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">Crear cuenta</button>
+                    <button type="submit" class="btn btn-primary">Crear cuenta</button>
                 </form>
             </div>
             
@@ -54,6 +188,127 @@
         </div>
     </div>
     
-    <script src="auth.js"></script>
+    <script>
+        const API_URL = '';
+        
+        class Auth {
+            static async login(username, password) {
+                try {
+                    const response = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        localStorage.setItem('auth_token', data.token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        return { success: true };
+                    }
+                    
+                    const error = await response.json();
+                    return { success: false, error: error.error };
+                } catch (error) {
+                    return { success: false, error: 'Error de conexión' };
+                }
+            }
+            
+            static async register(username, email, password) {
+                try {
+                    const response = await fetch('/api/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, email, password })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        localStorage.setItem('auth_token', data.token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        return { success: true };
+                    }
+                    
+                    const error = await response.json();
+                    return { success: false, error: error.error };
+                } catch (error) {
+                    return { success: false, error: 'Error de conexión' };
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            const messageDiv = document.getElementById('auth-message');
+            
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const forms = document.querySelectorAll('.auth-form');
+            
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tab = btn.dataset.tab;
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    forms.forEach(f => f.classList.remove('active'));
+                    document.getElementById(`${tab}-form`).classList.add('active');
+                    if (messageDiv) messageDiv.style.display = 'none';
+                });
+            });
+            
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const username = document.getElementById('login-username').value;
+                    const password = document.getElementById('login-password').value;
+                    
+                    const result = await Auth.login(username, password);
+                    if (result.success) {
+                        window.location.href = '/dashboard';
+                    } else {
+                        showMessage(result.error || 'Credenciales inválidas', 'error');
+                    }
+                });
+            }
+            
+            if (registerForm) {
+                registerForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const username = document.getElementById('reg-username').value;
+                    const email = document.getElementById('reg-email').value;
+                    const password = document.getElementById('reg-password').value;
+                    const confirm = document.getElementById('reg-confirm').value;
+                    
+                    if (password !== confirm) {
+                        showMessage('Las contraseñas no coinciden', 'error');
+                        return;
+                    }
+                    
+                    if (password.length < 6) {
+                        showMessage('La contraseña debe tener al menos 6 caracteres', 'error');
+                        return;
+                    }
+                    
+                    const result = await Auth.register(username, email, password);
+                    if (result.success) {
+                        window.location.href = '/dashboard';
+                    } else {
+                        showMessage(result.error || 'Error al registrarse', 'error');
+                    }
+                });
+            }
+            
+            function showMessage(msg, type) {
+                if (messageDiv) {
+                    messageDiv.textContent = msg;
+                    messageDiv.className = `auth-message ${type}`;
+                    messageDiv.style.display = 'block';
+                    setTimeout(() => {
+                        messageDiv.style.display = 'none';
+                    }, 3000);
+                }
+            }
+        });
+    </script>
 </body>
 </html>
