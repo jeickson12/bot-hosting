@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autenticación - BotHost</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h2>🤖 BotHost</h2>
+            
+            <div class="auth-tabs">
+                <button class="tab-btn active" data-tab="login">Iniciar Sesión</button>
+                <button class="tab-btn" data-tab="register">Registrarse</button>
+            </div>
+            
+            <div class="auth-forms">
+                <form id="login-form" class="auth-form active">
+                    <div class="form-group">
+                        <label>Usuario</label>
+                        <input type="text" id="login-username" placeholder="usuario" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <input type="password" id="login-password" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
+                </form>
+                
+                <form id="register-form" class="auth-form">
+                    <div class="form-group">
+                        <label>Usuario</label>
+                        <input type="text" id="reg-username" placeholder="usuario" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="reg-email" placeholder="tu@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <input type="password" id="reg-password" placeholder="mínimo 6 caracteres" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label>Confirmar contraseña</label>
+                        <input type="password" id="reg-confirm" placeholder="repite la contraseña" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Crear cuenta</button>
+                </form>
+            </div>
+            
+            <div id="auth-message" class="auth-message"></div>
+        </div>
+    </div>
+    
+    <script src="auth.js"></script>
+</body>
+</html>

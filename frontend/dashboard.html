@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - BotHost</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🤖 BotHost</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="bots">
+                    📦 Mis Bots
+                </button>
+                <button class="nav-item" data-view="github">
+                    🔗 Conectar GitHub
+                </button>
+                <button class="nav-item" data-view="account">
+                    👤 Mi Cuenta
+                </button>
+                <hr>
+                <button class="nav-item" id="logout-btn">
+                    🚪 Cerrar Sesión
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="top-bar">
+                <h1 id="page-title">Mis Bots</h1>
+                <div id="user-badge" class="user-badge"></div>
+            </div>
+
+            <!-- Vista de Bots -->
+            <div id="view-bots" class="view active">
+                <div class="bots-header">
+                    <h2>Tus Bots Desplegados</h2>
+                    <span id="plan-badge" class="plan-badge"></span>
+                </div>
+                <div id="bots-list" class="bots-grid"></div>
+            </div>
+
+            <!-- Vista de GitHub -->
+            <div id="view-github" class="view">
+                <div class="github-section">
+                    <div id="github-status" class="github-status-card"></div>
+                    <div id="github-repos" class="repos-container"></div>
+                </div>
+            </div>
+
+            <!-- Vista de Cuenta -->
+            <div id="view-account" class="view">
+                <div class="account-card">
+                    <h3>Información de la Cuenta</h3>
+                    <div id="account-info" class="account-info"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de Logs -->
+    <div id="logs-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📋 Logs del Bot</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <pre id="logs-content" class="logs-viewer"></pre>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-sm" onclick="dashboard.refreshLogs()">🔄 Refrescar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

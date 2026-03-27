@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: telegram-bot-hosting
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --timeout 120 --workers 1
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_REDIRECT_URI
+        value: https://telegram-bot-hosting.onrender.com/auth/github/callback
+    disk:
+      name: bots-storage
+      mountPath: /opt/render/project/src/bots
+      sizeGB: 5
