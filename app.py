@@ -588,7 +588,8 @@ def api_delete_bot(bot_id):
     if success:
         return jsonify({'message': 'Bot eliminado'}), 200
     return jsonify({'error': 'Error al eliminar'}), 500
-	@app.route('/api/bots/<int:bot_id>/env', methods=['POST'])
+
+@app.route('/api/bots/<int:bot_id>/env', methods=['POST'])
 @auth_required
 def api_set_bot_env(bot_id):
     """Permite al usuario agregar variables de entorno para su bot"""
