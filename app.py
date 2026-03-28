@@ -16,7 +16,7 @@ from flask_cors import CORS
 
 app = Flask(__name__, static_folder='frontend')
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.config['SESSION_COOKIE_SECURE'] = False  # True en producción con HTTPS
+app.config['SESSION_COOKIE_SECURE'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 CORS(app)
 
@@ -27,11 +27,28 @@ LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 os.makedirs(BOTS_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-# Variables de entorno para GitHub OAuth
+# Variables de entorno
 GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
 GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
 GITHUB_REDIRECT_URI = os.environ.get('GITHUB_REDIRECT_URI', '')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+
+# Configuración PayPal
+PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID', '')
+PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET', '')
+PAYPAL_MODE = os.environ.get('PAYPAL_MODE', 'sandbox')
+
+if PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET:
+    paypalrestsdk.configure({
+        "mode": PAYPAL_MODE,
+        "client_id": PAYPAL_CLIENT_ID,
+        "client_secret": PAYPAL_CLIENT_SECRET
+    })
+    print("✅ PayPal configurado")
+else:
+    print("⚠️ PayPal no configurado")
+
+PRO_PRICE = 9.99
 
 # ==================== BASE DE DATOS ====================
 class Database:
@@ -234,6 +251,15 @@ class Database:
         c.execute('DELETE FROM bots WHERE id = %s', (bot_id,))
         conn.commit()
         conn.close()
+    
+    def update_user_plan(self, user_id, plan):
+        """Actualiza el plan de un usuario (free/pro)"""
+        conn = self.get_conn()
+        c = conn.cursor()
+        c.execute('UPDATE users SET plan = %s WHERE id = %s', (plan, user_id))
+        conn.commit()
+        conn.close()
+
 db = Database()
 print("✅ Base de datos PostgreSQL conectada")
 
@@ -267,13 +293,10 @@ class BotManager:
         bot_dir = os.path.join(BOTS_DIR, f'user_{user_id}_{safe_name}_{timestamp}')
         
         try:
-            # Obtener el token de GitHub del usuario que está desplegando
             user = db.get_user(user_id)
             github_token = user.get('github_token') if user else None
             
-            # Si es un repositorio de GitHub y tenemos token, usarlo
             if 'github.com' in repo_url and github_token:
-                # Convertir URL para usar token: https://TOKEN@github.com/usuario/repo.git
                 repo_url_with_token = repo_url.replace('https://', f'https://{github_token}@')
                 print(f"📦 Clonando con token: {repo_url}")
                 repo = git.Repo.clone_from(repo_url_with_token, bot_dir, depth=1)
@@ -315,22 +338,17 @@ class BotManager:
         try:
             log_file = os.path.join(LOGS_DIR, f'bot_{bot_id}.log')
             
-            # Crear copia del entorno actual
             env = os.environ.copy()
             
-            # Obtener información del bot y usuario para pasar variables
             bot = db.get_bot(bot_id)
             if bot:
                 user = db.get_user(bot['user_id'])
                 if user:
-                    # Pasar el token de GitHub si existe
                     if user.get('github_token'):
                         env['GITHUB_TOKEN'] = user['github_token']
-                    # Pasar username de GitHub
                     if user.get('github_username'):
                         env['GITHUB_USERNAME'] = user['github_username']
             
-            # Iniciar proceso con el entorno completo
             process = subprocess.Popen(
                 ['python', main_file],
                 cwd=bot_dir,
@@ -424,6 +442,7 @@ class BotManager:
         return True
 
 bot_manager = BotManager()
+
 # ==================== DECORADOR DE AUTENTICACIÓN ====================
 def auth_required(f):
     def decorated(*args, **kwargs):
@@ -528,6 +547,7 @@ def api_logout():
     if token:
         db.delete_session(token)
     return jsonify({'message': 'OK'}), 200
+
 # ==================== API DE GITHUB ====================
 @app.route('/api/github/save-token', methods=['POST'])
 @auth_required
@@ -559,8 +579,9 @@ def api_deploy_bot():
     if not repo_url or not bot_name:
         return jsonify({'error': 'URL y nombre requeridos'}), 400
     
-    if request.user['plan'] == 'free' and len(db.get_user_bots(request.user['id'])) >= 5:
-        return jsonify({'error': 'Límite de 5 bots alcanzado'}), 403
+    current_bots = len(db.get_user_bots(request.user['id']))
+    if request.user['plan'] == 'free' and current_bots >= 2:
+        return jsonify({'error': 'Límite de 2 bots alcanzado. Actualiza a Pro para bots ilimitados'}), 403
     
     bot, error = bot_manager.deploy_bot(request.user['id'], repo_url, bot_name)
     
@@ -593,22 +614,78 @@ def api_delete_bot(bot_id):
 @app.route('/api/bots/<int:bot_id>/env', methods=['POST'])
 @auth_required
 def api_set_bot_env(bot_id):
-    """Permite al usuario agregar variables de entorno para su bot"""
     data = request.json
     env_vars = data.get('env_vars', {})
     
-    # Verificar que el bot pertenece al usuario
     bot = db.get_bot(bot_id)
     if not bot or bot['user_id'] != request.user['id']:
         return jsonify({'error': 'No autorizado'}), 401
     
-    # Guardar variables de entorno en un archivo .env dentro del directorio del bot
     env_file = os.path.join(bot['directory'], '.env')
     with open(env_file, 'w') as f:
         for key, value in env_vars.items():
             f.write(f"{key}={value}\n")
     
     return jsonify({'message': 'Variables guardadas'}), 200
+
+# ==================== API DE PAYPAL ====================
+@app.route('/api/create-paypal-payment', methods=['POST'])
+@auth_required
+def create_paypal_payment():
+    if not PAYPAL_CLIENT_ID:
+        return jsonify({'error': 'PayPal no configurado'}), 500
+    
+    try:
+        payment = paypalrestsdk.Payment({
+            "intent": "sale",
+            "payer": {
+                "payment_method": "paypal"
+            },
+            "redirect_urls": {
+                "return_url": request.url_root.rstrip('/') + "/api/paypal-execute",
+                "cancel_url": request.url_root.rstrip('/') + "/dashboard?payment_cancelled=true"
+            },
+            "transactions": [{
+                "amount": {
+                    "total": str(PRO_PRICE),
+                    "currency": "USD"
+                },
+                "description": "BotHost Pro - Plan Mensual (bots ilimitados)",
+                "custom": str(request.user['id'])
+            }]
+        })
+
+        if payment.create():
+            for link in payment.links:
+                if link.rel == "approval_url":
+                    return jsonify({'url': str(link.href)}), 200
+        else:
+            return jsonify({'error': payment.error}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/paypal-execute', methods=['GET'])
+def execute_paypal_payment():
+    payment_id = request.args.get('paymentId')
+    payer_id = request.args.get('PayerID')
+    
+    if not payment_id or not payer_id:
+        return redirect('/dashboard?payment_failed=true')
+    
+    try:
+        payment = paypalrestsdk.Payment.find(payment_id)
+        
+        if payment.execute({"payer_id": payer_id}):
+            user_id = int(payment.transactions[0].custom)
+            db.update_user_plan(user_id, 'pro')
+            return redirect('/dashboard?payment_success=true')
+        else:
+            return redirect('/dashboard?payment_failed=true')
+            
+    except Exception as e:
+        print(f"Error ejecutando pago: {e}")
+        return redirect('/dashboard?payment_failed=true')
 
 # ==================== API DE REPOSITORIOS GITHUB ====================
 @app.route('/api/github/repos', methods=['GET'])
@@ -640,10 +717,8 @@ def github_auth():
     if not GITHUB_CLIENT_ID:
         return "Error: GITHUB_CLIENT_ID no configurado", 500
     
-    # Guardar el token de sesión del usuario en la URL
     token = request.args.get('token')
     if token:
-        # Guardar en sesión para usarlo después
         session['pending_auth_token'] = token
     
     redirect_uri = GITHUB_REDIRECT_URI
@@ -679,15 +754,12 @@ def github_callback():
                 github_user = user_response.json()
                 github_username = github_user.get('login')
                 
-                # Si tenemos el token del usuario en el state, podemos guardar directamente
                 if state:
-                    # Buscar usuario por token de sesión
                     user = db.get_user_by_token(state)
                     if user:
                         db.save_github_token(user['id'], github_token, github_username)
                         return redirect(f'/dashboard?github_connected=true')
                 
-                # Si no, redirigir con parámetros para guardar después
                 return redirect(f'/dashboard?github_connected=true&temp_token={github_token}&temp_username={github_username}')
     
     return redirect('/dashboard?error=github_auth_failed')
