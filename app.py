@@ -8,6 +8,7 @@ import time
 import shutil
 import git
 import psycopg2
+import paypalrestsdk
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from flask import Flask, send_from_directory, jsonify, request, redirect, session
