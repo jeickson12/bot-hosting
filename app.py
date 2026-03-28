@@ -237,6 +237,7 @@ db = Database()
 print("✅ Base de datos PostgreSQL conectada")
 
 # ==================== GESTOR DE BOTS ====================
+# ==================== GESTOR DE BOTS ====================
 class BotManager:
     def __init__(self):
         self.processes = {}
@@ -266,8 +267,20 @@ class BotManager:
         bot_dir = os.path.join(BOTS_DIR, f'user_{user_id}_{safe_name}_{timestamp}')
         
         try:
-            print(f"📦 Clonando: {repo_url}")
-            repo = git.Repo.clone_from(repo_url, bot_dir, depth=1)
+            # Obtener el token de GitHub del usuario que está desplegando
+            user = db.get_user(user_id)
+            github_token = user.get('github_token') if user else None
+            
+            # Si es un repositorio de GitHub y tenemos token, usarlo
+            if 'github.com' in repo_url and github_token:
+                # Convertir URL para usar token: https://TOKEN@github.com/usuario/repo.git
+                repo_url_with_token = repo_url.replace('https://', f'https://{github_token}@')
+                print(f"📦 Clonando con token: {repo_url}")
+                repo = git.Repo.clone_from(repo_url_with_token, bot_dir, depth=1)
+            else:
+                print(f"📦 Clonando sin token: {repo_url}")
+                repo = git.Repo.clone_from(repo_url, bot_dir, depth=1)
+            
             repo_name = repo_url.split('/')[-1].replace('.git', '')
             
             main_file = self.find_main_file(bot_dir)
@@ -394,7 +407,6 @@ class BotManager:
         return True
 
 bot_manager = BotManager()
-
 # ==================== DECORADOR DE AUTENTICACIÓN ====================
 def auth_required(f):
     def decorated(*args, **kwargs):
