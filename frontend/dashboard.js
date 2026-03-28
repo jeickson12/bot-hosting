@@ -19,7 +19,7 @@ class DashboardApp {
             return;
         }
         
-        // Procesar parámetros de URL (después de GitHub OAuth)
+        // Procesar parámetros de URL (después de GitHub OAuth y PayPal)
         await this.processUrlParams();
         
         this.setupEventListeners();
@@ -33,9 +33,12 @@ class DashboardApp {
         const githubConnected = urlParams.get('github_connected');
         const tempToken = urlParams.get('temp_token');
         const tempUsername = urlParams.get('temp_username');
+        const paymentSuccess = urlParams.get('payment_success');
+        const paymentFailed = urlParams.get('payment_failed');
+        const paymentCancelled = urlParams.get('payment_cancelled');
         
+        // Procesar GitHub OAuth
         if (githubConnected === 'true' && tempToken && tempUsername) {
-            // Guardar el token de GitHub
             try {
                 const response = await fetch('/api/github/save-token', {
                     method: 'POST',
@@ -53,23 +56,33 @@ class DashboardApp {
                     const data = await response.json();
                     this.user = data.user;
                     localStorage.setItem('user', JSON.stringify(this.user));
-                    
-                    // Limpiar URL
                     window.history.replaceState({}, document.title, '/dashboard');
-                    
-                    // Mostrar mensaje de éxito
                     this.showToast('✅ GitHub conectado correctamente', 'success');
                 }
             } catch (error) {
                 console.error('Error saving GitHub token:', error);
             }
         } else if (githubConnected === 'true') {
-            // Solo recargar información del usuario
             await this.verifyAuth();
             window.history.replaceState({}, document.title, '/dashboard');
         }
         
-        // Verificar si hay error
+        // Procesar pagos de PayPal
+        if (paymentSuccess === 'true') {
+            this.showToast('✅ Pago exitoso! Ahora eres PRO con bots ilimitados', 'success');
+            await this.verifyAuth(); // Recargar usuario con plan PRO
+            this.loadUserInfo();
+            this.loadAccountInfo();
+            window.history.replaceState({}, document.title, '/dashboard');
+        } else if (paymentFailed === 'true') {
+            this.showToast('❌ Error en el pago. Intenta nuevamente', 'error');
+            window.history.replaceState({}, document.title, '/dashboard');
+        } else if (paymentCancelled === 'true') {
+            this.showToast('❌ Pago cancelado', 'error');
+            window.history.replaceState({}, document.title, '/dashboard');
+        }
+        
+        // Verificar si hay error de GitHub
         const error = urlParams.get('error');
         if (error === 'github_auth_failed') {
             this.showToast('❌ Error al conectar GitHub', 'error');
@@ -78,7 +91,6 @@ class DashboardApp {
     }
     
     showToast(message, type) {
-        // Crear toast simple
         const toast = document.createElement('div');
         toast.textContent = message;
         toast.style.cssText = `
@@ -164,7 +176,8 @@ class DashboardApp {
         
         const planBadge = document.getElementById('plan-badge');
         if (planBadge) {
-            planBadge.innerText = this.user.plan === 'free' ? '🎁 Plan Gratis - 5 bots máximo' : '⭐ Plan Pro - Bots ilimitados';
+            const limitText = this.user.plan === 'free' ? '🎁 Plan Gratis - 2 bots máximo' : '⭐ Plan Pro - Bots ilimitados';
+            planBadge.innerText = limitText;
         }
     }
     
@@ -301,7 +314,6 @@ class DashboardApp {
                     </div>
                 </div>
             `;
-            // Cargar repositorios automáticamente si estamos en la vista de GitHub
             if (document.getElementById('view-github').classList.contains('active')) {
                 this.loadGitHubRepos();
             }
@@ -418,6 +430,10 @@ class DashboardApp {
         const container = document.getElementById('account-info');
         if (!container) return;
         
+        const botLimit = this.user.plan === 'pro' ? '∞' : '2';
+        const currentBots = await this.getBotCount();
+        const remaining = this.user.plan === 'pro' ? 'ilimitados' : (2 - currentBots);
+        
         container.innerHTML = `
             <div class="info-row">
                 <span class="label">Usuario:</span>
@@ -429,11 +445,19 @@ class DashboardApp {
             </div>
             <div class="info-row">
                 <span class="label">Plan:</span>
-                <span class="value">${this.user.plan === 'free' ? 'Gratis' : 'Pro'}</span>
+                <span class="value plan-badge ${this.user.plan}">${this.user.plan === 'pro' ? '⭐ PRO (Bots ilimitados)' : '🎁 GRATIS (2 bots)'}</span>
             </div>
             <div class="info-row">
                 <span class="label">GitHub:</span>
                 <span class="value">${this.user.github_username ? `Conectado (${this.user.github_username})` : 'No conectado'}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Bots activos:</span>
+                <span class="value">${currentBots} / ${botLimit}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Bots disponibles:</span>
+                <span class="value">${remaining}</span>
             </div>
             <div class="info-row">
                 <span class="label">Fecha registro:</span>
@@ -441,22 +465,57 @@ class DashboardApp {
             </div>
         `;
         
+        // Botón de upgrade solo para usuarios FREE
+        if (this.user.plan !== 'pro') {
+            container.innerHTML += `
+                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
+                    <button class="btn btn-primary" onclick="dashboard.upgradeToPro()" style="width: 100%;">
+                        ⭐ Actualizar a Pro - $9.99/mes
+                    </button>
+                    <p style="font-size: 0.7rem; color: #666; text-align: center; margin-top: 0.5rem;">
+                        🔒 Bots ilimitados · Soporte prioritario · Pago seguro con PayPal
+                    </p>
+                </div>
+            `;
+        }
+    }
+    
+    async getBotCount() {
         try {
             const response = await fetch('/api/bots', {
                 headers: { 'Authorization': this.token }
             });
             if (response.ok) {
                 const bots = await response.json();
-                const limit = this.user.plan === 'free' ? 5 : '∞';
-                container.innerHTML += `
-                    <div class="info-row">
-                        <span class="label">Bots activos:</span>
-                        <span class="value">${bots.length} / ${limit}</span>
-                    </div>
-                `;
+                return bots.length;
             }
         } catch (error) {
-            console.error('Error loading bot count:', error);
+            console.error('Error:', error);
+        }
+        return 0;
+    }
+    
+    async upgradeToPro() {
+        try {
+            this.showToast('🔄 Redirigiendo a PayPal...', 'info');
+            
+            const response = await fetch('/api/create-paypal-payment', {
+                method: 'POST',
+                headers: {
+                    'Authorization': this.token,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                window.location.href = data.url;
+            } else {
+                const error = await response.json();
+                this.showToast(error.error || '❌ Error al iniciar el pago', 'error');
+            }
+        } catch (error) {
+            this.showToast('❌ Error de conexión', 'error');
         }
     }
     
