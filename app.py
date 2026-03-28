@@ -237,7 +237,6 @@ db = Database()
 print("✅ Base de datos PostgreSQL conectada")
 
 # ==================== GESTOR DE BOTS ====================
-# ==================== GESTOR DE BOTS ====================
 class BotManager:
     def __init__(self):
         self.processes = {}
@@ -315,13 +314,30 @@ class BotManager:
         try:
             log_file = os.path.join(LOGS_DIR, f'bot_{bot_id}.log')
             
+            # Crear copia del entorno actual
+            env = os.environ.copy()
+            
+            # Obtener información del bot y usuario para pasar variables
+            bot = db.get_bot(bot_id)
+            if bot:
+                user = db.get_user(bot['user_id'])
+                if user:
+                    # Pasar el token de GitHub si existe
+                    if user.get('github_token'):
+                        env['GITHUB_TOKEN'] = user['github_token']
+                    # Pasar username de GitHub
+                    if user.get('github_username'):
+                        env['GITHUB_USERNAME'] = user['github_username']
+            
+            # Iniciar proceso con el entorno completo
             process = subprocess.Popen(
                 ['python', main_file],
                 cwd=bot_dir,
                 stdout=open(log_file, 'a'),
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
-                start_new_session=True
+                start_new_session=True,
+                env=env
             )
             
             self.processes[bot_id] = process
@@ -572,6 +588,25 @@ def api_delete_bot(bot_id):
     if success:
         return jsonify({'message': 'Bot eliminado'}), 200
     return jsonify({'error': 'Error al eliminar'}), 500
+	@app.route('/api/bots/<int:bot_id>/env', methods=['POST'])
+@auth_required
+def api_set_bot_env(bot_id):
+    """Permite al usuario agregar variables de entorno para su bot"""
+    data = request.json
+    env_vars = data.get('env_vars', {})
+    
+    # Verificar que el bot pertenece al usuario
+    bot = db.get_bot(bot_id)
+    if not bot or bot['user_id'] != request.user['id']:
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    # Guardar variables de entorno en un archivo .env dentro del directorio del bot
+    env_file = os.path.join(bot['directory'], '.env')
+    with open(env_file, 'w') as f:
+        for key, value in env_vars.items():
+            f.write(f"{key}={value}\n")
+    
+    return jsonify({'message': 'Variables guardadas'}), 200
 
 # ==================== API DE REPOSITORIOS GITHUB ====================
 @app.route('/api/github/repos', methods=['GET'])
