@@ -233,6 +233,8 @@ class Database:
         c.execute('DELETE FROM bots WHERE id = %s', (bot_id,))
         conn.commit()
         conn.close()
+db = Database()
+print("✅ Base de datos PostgreSQL conectada")
 
 # ==================== GESTOR DE BOTS ====================
 class BotManager:
@@ -448,44 +450,18 @@ def api_register():
     password = data.get('password')
     email = data.get('email')
     
+    print(f"📝 Intento de registro: {username}")  # <--- AGREGAR
+    
     if not username or not password:
         return jsonify({'error': 'Usuario y contraseña requeridos'}), 400
     
     user = db.register_user(username, password, email)
+    print(f"📝 Resultado registro: {user}")  # <--- AGREGAR
+    
     if user:
         token = db.create_session(user['id'])
         return jsonify({'token': token, 'user': user}), 201
     return jsonify({'error': 'Usuario ya existe'}), 400
-
-@app.route('/api/login', methods=['POST'])
-def api_login():
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    
-    user = db.verify_user(username, password)
-    if user:
-        token = db.create_session(user['id'])
-        return jsonify({'token': token, 'user': user}), 200
-    return jsonify({'error': 'Credenciales inválidas'}), 401
-
-@app.route('/api/verify', methods=['POST'])
-def api_verify():
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({'error': 'No token'}), 401
-    
-    user = db.get_user_by_token(token)
-    if user:
-        return jsonify({'user': user}), 200
-    return jsonify({'error': 'Token inválido'}), 401
-
-@app.route('/api/logout', methods=['POST'])
-def api_logout():
-    token = request.headers.get('Authorization')
-    if token:
-        db.delete_session(token)
-    return jsonify({'message': 'OK'}), 200
 
 # ==================== API DE GITHUB ====================
 @app.route('/api/github/save-token', methods=['POST'])
