@@ -188,137 +188,159 @@
         </div>
     </div>
     
-    <script>
-        const API_URL = '';
-        
-        class Auth {
-            static async login(username, password) {
-                try {
-                    const response = await fetch('/api/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username, password })
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        localStorage.setItem('auth_token', data.token);
-                        localStorage.setItem('user', JSON.stringify(data.user));
-                        return { success: true };
-                    }
-                    
-                    const error = await response.json();
-                    return { success: false, error: error.error };
-                } catch (error) {
-                    return { success: false, error: 'Error de conexión' };
+   <script>
+    const API_URL = '';
+    
+    class Auth {
+        static async login(username, password) {
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('auth_token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    return { success: true };
                 }
-            }
-            
-            static async register(username, email, password) {
-                try {
-                    const response = await fetch('/api/register', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username, email, password })
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        localStorage.setItem('auth_token', data.token);
-                        localStorage.setItem('user', JSON.stringify(data.user));
-                        return { success: true };
-                    }
-                    
-                    const error = await response.json();
-                    return { success: false, error: error.error };
-                } catch (error) {
-                    return { success: false, error: 'Error de conexión' };
-                }
+                
+                const error = await response.json();
+                return { success: false, error: error.error };
+            } catch (error) {
+                return { success: false, error: 'Error de conexión' };
             }
         }
         
-        document.addEventListener('DOMContentLoaded', () => {
+        static async register(username, email, password) {
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('auth_token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    return { success: true };
+                }
+                
+                const error = await response.json();
+                return { success: false, error: error.error };
+            } catch (error) {
+                return { success: false, error: 'Error de conexión' };
+            }
+        }
+    }
+    
+    // Función para cambiar a la pestaña de registro
+    function switchToRegisterTab() {
+        // Esperar un poco a que los elementos estén listos
+        setTimeout(() => {
+            const registerTab = document.querySelector('.tab-btn[data-tab="register"]');
+            const loginTab = document.querySelector('.tab-btn[data-tab="login"]');
             const loginForm = document.getElementById('login-form');
             const registerForm = document.getElementById('register-form');
-            const messageDiv = document.getElementById('auth-message');
             
-            const tabBtns = document.querySelectorAll('.tab-btn');
-            const forms = document.querySelectorAll('.auth-form');
-            
-            // Detectar si viene con tab=register en la URL
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('tab') === 'register') {
-                // Cambiar a la pestaña de registro
-                const registerTab = document.querySelector('.tab-btn[data-tab="register"]');
-                if (registerTab) {
-                    registerTab.click();
-                }
+            if (registerTab && registerForm) {
+                // Cambiar clases de los tabs
+                loginTab.classList.remove('active');
+                registerTab.classList.add('active');
+                // Cambiar formularios
+                loginForm.classList.remove('active');
+                registerForm.classList.add('active');
+                console.log('✅ Cambiado a pestaña de registro');
+            } else {
+                console.log('❌ No se encontraron los elementos');
             }
-            
-            tabBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const tab = btn.dataset.tab;
-                    tabBtns.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    forms.forEach(f => f.classList.remove('active'));
-                    document.getElementById(`${tab}-form`).classList.add('active');
-                    if (messageDiv) messageDiv.style.display = 'none';
-                });
+        }, 100);
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const messageDiv = document.getElementById('auth-message');
+        
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const forms = document.querySelectorAll('.auth-form');
+        
+        // Detectar si viene con tab=register en la URL
+        console.log('URL actual:', window.location.href);
+        console.log('Parámetro tab:', new URLSearchParams(window.location.search).get('tab'));
+        
+        if (window.location.search.includes('tab=register')) {
+            console.log('🎯 Detectado tab=register, cambiando a registro...');
+            switchToRegisterTab();
+        }
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                tabBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                forms.forEach(f => f.classList.remove('active'));
+                document.getElementById(`${tab}-form`).classList.add('active');
+                if (messageDiv) messageDiv.style.display = 'none';
             });
-            
-            if (loginForm) {
-                loginForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const username = document.getElementById('login-username').value;
-                    const password = document.getElementById('login-password').value;
-                    
-                    const result = await Auth.login(username, password);
-                    if (result.success) {
-                        window.location.href = '/dashboard';
-                    } else {
-                        showMessage(result.error || 'Credenciales inválidas', 'error');
-                    }
-                });
-            }
-            
-            if (registerForm) {
-                registerForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const username = document.getElementById('reg-username').value;
-                    const email = document.getElementById('reg-email').value;
-                    const password = document.getElementById('reg-password').value;
-                    const confirm = document.getElementById('reg-confirm').value;
-                    
-                    if (password !== confirm) {
-                        showMessage('Las contraseñas no coinciden', 'error');
-                        return;
-                    }
-                    
-                    if (password.length < 6) {
-                        showMessage('La contraseña debe tener al menos 6 caracteres', 'error');
-                        return;
-                    }
-                    
-                    const result = await Auth.register(username, email, password);
-                    if (result.success) {
-                        window.location.href = '/dashboard';
-                    } else {
-                        showMessage(result.error || 'Error al registrarse', 'error');
-                    }
-                });
-            }
-            
-            function showMessage(msg, type) {
-                if (messageDiv) {
-                    messageDiv.textContent = msg;
-                    messageDiv.className = `auth-message ${type}`;
-                    messageDiv.style.display = 'block';
-                    setTimeout(() => {
-                        messageDiv.style.display = 'none';
-                    }, 3000);
-                }
-            }
         });
-    </script>
+        
+        if (loginForm) {
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = document.getElementById('login-username').value;
+                const password = document.getElementById('login-password').value;
+                
+                const result = await Auth.login(username, password);
+                if (result.success) {
+                    window.location.href = '/dashboard';
+                } else {
+                    showMessage(result.error || 'Credenciales inválidas', 'error');
+                }
+            });
+        }
+        
+        if (registerForm) {
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = document.getElementById('reg-username').value;
+                const email = document.getElementById('reg-email').value;
+                const password = document.getElementById('reg-password').value;
+                const confirm = document.getElementById('reg-confirm').value;
+                
+                if (password !== confirm) {
+                    showMessage('Las contraseñas no coinciden', 'error');
+                    return;
+                }
+                
+                if (password.length < 6) {
+                    showMessage('La contraseña debe tener al menos 6 caracteres', 'error');
+                    return;
+                }
+                
+                const result = await Auth.register(username, email, password);
+                if (result.success) {
+                    window.location.href = '/dashboard';
+                } else {
+                    showMessage(result.error || 'Error al registrarse', 'error');
+                }
+            });
+        }
+        
+        function showMessage(msg, type) {
+            if (messageDiv) {
+                messageDiv.textContent = msg;
+                messageDiv.className = `auth-message ${type}`;
+                messageDiv.style.display = 'block';
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+    });
+</script>
 </body>
 </html>
