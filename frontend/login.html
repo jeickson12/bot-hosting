@@ -245,6 +245,16 @@
             const tabBtns = document.querySelectorAll('.tab-btn');
             const forms = document.querySelectorAll('.auth-form');
             
+            // Detectar si viene con tab=register en la URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('tab') === 'register') {
+                // Cambiar a la pestaña de registro
+                const registerTab = document.querySelector('.tab-btn[data-tab="register"]');
+                if (registerTab) {
+                    registerTab.click();
+                }
+            }
+            
             tabBtns.forEach(btn => {
                 btn.addEventListener('click', () => {
                     const tab = btn.dataset.tab;
