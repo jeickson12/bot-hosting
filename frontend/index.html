@@ -212,6 +212,16 @@
             color: #666;
         }
         
+        /* Mensaje de actualización */
+        .upgrade-note {
+            text-align: center;
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #e3f2fd;
+            border-radius: 8px;
+            color: #1976d2;
+        }
+        
         footer {
             background: #2d3748;
             color: white;
@@ -235,7 +245,7 @@
             <div class="logo">🤖 BotHost</div>
             <div class="nav-links">
                 <a href="/login" class="btn btn-outline">Iniciar Sesión</a>
-                <a href="/login" class="btn btn-primary">Registrarse</a>
+                <a href="/login?tab=register" class="btn btn-primary">Registrarse</a>
             </div>
         </div>
     </nav>
@@ -244,7 +254,7 @@
         <div class="hero-content">
             <h1>Aloja tus bots de Telegram</h1>
             <p>Despliega desde GitHub en un solo clic. Logs en tiempo real. Totalmente gratuito.</p>
-            <a href="/login" class="btn btn-primary btn-large">Comenzar Ahora</a>
+            <a href="/login?tab=register" class="btn btn-primary btn-large">Comenzar Ahora</a>
         </div>
     </section>
 
@@ -284,24 +294,26 @@
                     <h3>Gratis</h3>
                     <div class="price">$0</div>
                     <ul>
-                        <li>✓ Hasta 5 bots</li>
+                        <li>✓ Hasta <strong>2 bots</strong></li>
                         <li>✓ Logs en tiempo real</li>
                         <li>✓ GitHub OAuth</li>
                         <li>✓ Soporte básico</li>
                     </ul>
-                    <a href="/login" class="btn btn-outline">Comenzar</a>
                 </div>
                 <div class="pricing-card featured">
                     <h3>Pro</h3>
                     <div class="price">$9.99<span>/mes</span></div>
                     <ul>
-                        <li>✓ Bots ilimitados</li>
+                        <li>✓ <strong>Bots ilimitados</strong></li>
                         <li>✓ Logs en tiempo real</li>
                         <li>✓ GitHub OAuth</li>
                         <li>✓ Soporte prioritario</li>
+                        <li>✓ Pago seguro con PayPal</li>
                     </ul>
-                    <a href="/login" class="btn btn-primary">Comenzar</a>
                 </div>
+            </div>
+            <div class="upgrade-note">
+                💡 ¿Necesitas más de 2 bots? Actualiza al plan Pro desde tu dashboard después de registrarte.
             </div>
         </div>
     </section>
@@ -309,6 +321,7 @@
     <footer>
         <div class="container">
             <p>© 2024 BotHost - Alojamiento para bots de Telegram</p>
+            <p style="font-size: 0.8rem; margin-top: 0.5rem;">🔒 Pagos seguros con PayPal</p>
         </div>
     </footer>
 </body>
